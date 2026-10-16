@@ -1,0 +1,31 @@
+# netDoc – Beispiel-Stack (Vorlage). Werte mit <...> bzw. die Beispiel-Adressen an das eigene Netz anpassen.
+# Den fertigen Stack nur in Dockhand pflegen, nicht ins Repository einchecken.
+services:
+  netdoc:
+    image: ghcr.io/andreasfurxer/netdoc:2.0.1
+    pull_policy: always
+    container_name: netdoc
+    restart: unless-stopped
+    cap_add:
+      - NET_RAW                 # nmap: ARP-/Raw-Scans (MAC-Adresse, Hersteller)
+      - NET_ADMIN
+    environment:
+      TZ: Europe/Vienna
+      NETDOC_PORT: "80"         # Port der Weboberfläche (bei eigener macvlan-IP: 80)
+    volumes:
+      - netdoc_data:/var/www/html/data
+    networks:
+      macvlan_netz:             # Name des bestehenden macvlan-Netzwerks
+        ipv4_address: 192.0.2.10   # freie IP im eigenen Netz
+
+volumes:
+  netdoc_data:                  # Datenbank per NFS auf einem NAS/Server
+    driver: local
+    driver_opts:
+      type: nfs
+      o: "addr=192.0.2.20,nfsvers=4.1,rw,hard"   # IP des NFS-Servers
+      device: ":/export/netdoc/data"             # Pfad des Datenordners auf dem NFS-Server
+
+networks:
+  macvlan_netz:
+    external: true

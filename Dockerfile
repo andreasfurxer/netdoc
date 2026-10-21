@@ -3,7 +3,7 @@
 FROM php:8.3-apache
 
 LABEL org.opencontainers.image.title="netDoc" \
-      org.opencontainers.image.version="2.0.1" \
+      org.opencontainers.image.version="2.0.2" \
       org.opencontainers.image.source="https://github.com/andreasfurxer/netdoc"
 
 ENV TZ=Europe/Vienna \

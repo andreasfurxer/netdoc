@@ -2,7 +2,7 @@
 # Den fertigen Stack nur in Dockhand pflegen, nicht ins Repository einchecken.
 services:
   netdoc:
-    image: ghcr.io/andreasfurxer/netdoc:2.0.1
+    image: ghcr.io/andreasfurxer/netdoc:2.0.2
     pull_policy: always
     container_name: netdoc
     restart: unless-stopped

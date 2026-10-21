@@ -14,7 +14,7 @@
 
 date_default_timezone_set('Europe/Vienna');
 
-const APP_VERSION = '2.0.1';
+const APP_VERSION = '2.0.2';
 
 const OUI_FILES = [
     __DIR__ . '/data/nmap-mac-prefixes',

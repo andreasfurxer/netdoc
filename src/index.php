@@ -14,7 +14,7 @@
 
 date_default_timezone_set('Europe/Vienna');
 
-const APP_VERSION = '2.0.2';
+const APP_VERSION = '2.0.3';
 
 const OUI_FILES = [
     __DIR__ . '/data/nmap-mac-prefixes',
@@ -118,6 +118,8 @@ ensureColumns($db, 'vlans', ['last_scan' => "TEXT DEFAULT ''"]);
 $db->exec("UPDATE devices SET hostname='' WHERE hostname='Unbekannt (Auto)'");
 $db->exec("UPDATE devices SET device_type='' WHERE device_type='Auto-Discovery'");
 $db->exec("UPDATE devices SET first_seen=last_seen WHERE IFNULL(first_seen,'')='' AND IFNULL(last_seen,'')<>''");
+// Einmalig aufräumen: "MAC geändert"-Markierungen bei Adressen, die schon einen Namen haben, sind überflüssig
+$db->exec("UPDATE devices SET is_new=0 WHERE is_new=1 AND new_reason LIKE 'MAC-Adresse ge%' AND (IFNULL(hostname,'')<>'' OR IFNULL(info,'')<>'')");
 $db->exec("CREATE INDEX IF NOT EXISTS idx_log_ts ON scan_log(ts)");
 
 // ---------------------------------------------------------------- Helfer
@@ -262,7 +264,11 @@ function scanVlan(PDO $db, array $vlan): int {
     // (der allererste Scan eines VLANs ist die Ausgangsbasis, sonst wäre alles "neu").
     $flag = getSetting($db, 'flag_new', '1') === '1' && trim((string)($vlan['last_scan'] ?? '')) !== '';
     $known = [];
-    foreach ($db->query("SELECT ip, mac FROM devices")->fetchAll(PDO::FETCH_ASSOC) as $r) $known[$r['ip']] = (string)$r['mac'];
+    $named = [];   // IPs mit Hostname oder Beschreibung: werden nie (wieder) als "neu" markiert
+    foreach ($db->query("SELECT ip, mac, hostname, info FROM devices")->fetchAll(PDO::FETCH_ASSOC) as $r) {
+        $known[$r['ip']] = (string)$r['mac'];
+        if (trim((string)$r['hostname']) !== '' || trim((string)$r['info']) !== '') $named[$r['ip']] = true;
+    }
     $arp = readArpTable();
 
     $db->beginTransaction();
@@ -296,7 +302,7 @@ function scanVlan(PDO $db, array $vlan): int {
             $ins->execute([$ip, $vlan['id'], $hn, $mac, $vendor, $now, $now, $flag ? 1 : 0, $flag ? $now : '', $flag ? 'Neues Gerät erkannt' : '']);
         } else {
             $upd->execute([$vlan['id'], $now, $hn, $mac, $mac, $mac, $vendor, $now, $ip]);
-            if ($flag && $mac !== '' && $known[$ip] !== '' && strcasecmp(normalizeMac($known[$ip]), $mac) !== 0) {
+            if ($flag && !isset($named[$ip]) && $mac !== '' && $known[$ip] !== '' && strcasecmp(normalizeMac($known[$ip]), $mac) !== 0) {
                 $flagStmt->execute([$now, 'MAC-Adresse geändert (vorher ' . $known[$ip] . ')', $ip]);
             }
         }
@@ -1188,7 +1194,7 @@ $pageTitles = ['network' => 'Netzwerk', 'stats' => 'Statistik', 'settings' => 'E
                 <div class="form-check form-switch mb-4">
                     <input class="form-check-input" type="checkbox" role="switch" id="flag_new" name="flag_new" value="1" <?= $flagNew ? 'checked' : '' ?>>
                     <label class="form-check-label fw-semibold" for="flag_new">Neue Clients markieren</label>
-                    <div class="form-text">Neue Geräte und Geräte mit geänderter MAC-Adresse bekommen ein „NEU“, bis eine Beschreibung eingetragen oder bestätigt wird. Der erste Scan eines VLANs gilt als Ausgangsbasis.</div>
+                    <div class="form-text">Neue Geräte und Geräte ohne Namen mit geänderter MAC-Adresse bekommen ein „NEU“, bis eine Beschreibung eingetragen oder bestätigt wird. Adressen mit Hostname oder Beschreibung werden nicht erneut markiert. Der erste Scan eines VLANs gilt als Ausgangsbasis.</div>
                 </div>
                 <div class="nd-h mb-3">Auswertung</div>
                 <div class="row g-3 mb-4">
